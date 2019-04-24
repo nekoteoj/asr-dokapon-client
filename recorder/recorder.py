@@ -1,3 +1,10 @@
+from sys import byteorder
+from array import array
+from struct import pack
+
+import pyaudio
+import wave
+
 # THRESHOLD = 500
 THRESHOLD = 4000
 CHUNK_SIZE = 1024

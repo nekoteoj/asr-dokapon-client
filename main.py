@@ -1,141 +1,66 @@
-from sys import byteorder
-from array import array
-from struct import pack
+import wx
+from pubsub import pub
+import threading
 
-import pyaudio
-import wave
+# notification
+from pubsub.utils.notification import useNotifyByWriteFile
+import sys
 
-# THRESHOLD = 500
-THRESHOLD = 4000
-CHUNK_SIZE = 1024
-FORMAT = pyaudio.paInt16
-RATE = 16000
+from recorder import recorder
+from view.record_view import RecordView
 
-
-def is_silent(snd_data):
-    """Return true if the data is below silent threshold"""
-    # print(max(snd_data))
-    return max(snd_data) < THRESHOLD
+useNotifyByWriteFile(sys.stdout)
 
 
-def normalize(snd_data):
-    """Average the volume out"""
-    MAXMIMUM = 16384.0
-    times = MAXMIMUM / max([abs(i) for i in snd_data])
+class Model:
+    def __init__(self):
+        self.set_threshold(3000)
 
-    r = array('h')
-    for i in snd_data:
-        r.append(int(i * times))
-    return r
+    def set_threshold(self, threshold):
+        self.threshold = threshold
+        pub.sendMessage("threshold_changed", threshold=self.threshold)
+        recorder.set_threshold(threshold)
 
+    def record_audio(self):
+        class RecordThread (threading.Thread):
+            def __init__(self, threadID):
+                threading.Thread.__init__(self)
+                self.threadID = threadID
 
-def trim(snd_data):
-    """Trim the blank spots at the start and end"""
+            def run(self):
+                pub.sendMessage("status_changed", status="Recording")
+                recorder.record_to_file("speak.wav")
+                pub.sendMessage("status_changed", status="Ready")
 
-    def _trim(snd_data):
-        snd_started = False
-        r = array('h')
-        for idx, i in enumerate(snd_data):
-            if not snd_started and abs(i) > THRESHOLD:
-                snd_started = True
-                j = max(0, idx - 5)
-                print(j, idx)
-                for k in range(j, idx):
-                    r.append(snd_data[k])
-                r.append(i)
-            elif snd_started:
-                r.append(i)
-        return r
-
-    # Trim to the left
-    snd_data = _trim(snd_data)
-
-    # Trim to the right
-    snd_data.reverse()
-    snd_data = _trim(snd_data)
-    snd_data.reverse()
-    return snd_data
+        recordThread = RecordThread(1)
+        recordThread.start()
 
 
-def add_silence(snd_data, seconds):
-    """
-    Add silence to the start and end of
-    'snd_data' of length 'seconds' (float)
-    """
-    r = array('h', [0 for i in range(int(seconds * RATE))])
-    r.extend(snd_data)
-    r.extend([0 for i in range(int(seconds * RATE))])
-    return r
+class Controller:
+    def __init__(self):
+        self.model = Model()
+        self.view = RecordView()
+        self.view.on_threshold_changed(self.model.threshold)
+        self.view.set_threshold_control_value(str(self.model.threshold))
+        self.view.Show()
 
+        pub.subscribe(self.set_threshold, "changing_threshold")
+        pub.subscribe(self.record_audio, "record_audio")
 
-def record():
-    """
-    Record a word or words from the microphone and
-    return the data as an array of signed shorts.
+    def set_threshold(self, threshold):
+        self.model.set_threshold(threshold)
 
-    Normalizes the audio, trims silence from the
-    start and end, and pads with 0.5 seconds of
-    blank sound to make sure VLC et al can play
-    it without getting chopped off.
-    """
-    p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT,
-                    channels=1,
-                    rate=RATE,
-                    input=True,
-                    output=True,
-                    frames_per_buffer=CHUNK_SIZE)
-
-    num_silent = 0
-    snd_started = False
-
-    r = array('h')
-
-    while 1:
-        # little endian, signed short
-        snd_data = array('h', stream.read(CHUNK_SIZE))
-        if byteorder == 'big':
-            snd_data.byteswap()
-        r.extend(snd_data)
-
-        silent = is_silent(snd_data)
-
-        if silent and snd_started:
-            num_silent += 1
-        elif not silent and not snd_started:
-            snd_started = True
-
-        if snd_started and num_silent > 30:
-            break
-
-    sample_width = p.get_sample_size(FORMAT)
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-
-    r = normalize(r)
-    r = trim(r)
-    r = add_silence(r, 0.5)
-    return sample_width, r
-
-
-def record_to_file(path):
-    """Records from the microphone and outputs the resulting data to 'path'"""
-    sample_width, data = record()
-    data = pack('<' + ('h' * len(data)), *data)
-
-    wf = wave.open(path, 'wb')
-    wf.setnchannels(1)
-    wf.setsampwidth(sample_width)
-    wf.setframerate(RATE)
-    wf.writeframes(data)
-    wf.close()
+    def record_audio(self):
+        self.model.record_audio()
 
 
 def main():
-    print("please speak a word into the microphone")
-    record_to_file('demo.wav')
-    print("done - result written to demo.wav")
+    app = wx.App()
+    c = Controller()
+    sys.stdout = sys.__stdout__
+    print('---- Starting main event loop ----')
+    app.MainLoop()
+    print('---- Exited main event loop ----')
 
 
 if __name__ == "__main__":
