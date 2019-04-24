@@ -3,7 +3,7 @@ from ..recorder import recorder
 import threading
 
 
-class Model:
+class RecordModel:
     def __init__(self):
         self.set_threshold(3000)
 
