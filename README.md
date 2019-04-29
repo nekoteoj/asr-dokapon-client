@@ -1,5 +1,7 @@
 # Dokapon ASR Client
 
+![Screenshot](https://raw.githubusercontent.com/nekoteoj/asr-dokapon-client/master/screenshot/client.png)
+
 ## Requirement
 
 * Python 3.6 or newer
