@@ -9,9 +9,20 @@ class RecordView(wx.Frame):
         text = wx.StaticText(self, -1, "Threshold")
         ctrl = wx.TextCtrl(self, -1, "")
         record_button = wx.Button(self, -1, "Record")
+        current_word = wx.StaticText(self, -1, "Current: -")
+        status_text = wx.StaticText(self, -1, "status: Ready")
+
+        font18 = wx.Font(18, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        font20 = wx.Font(20, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        current_word.SetFont(font20)
+        record_button.SetFont(font18)
+        status_text.SetFont(font18)
+
         sizer.Add(text, 0, wx.EXPAND | wx.ALL)
         sizer.Add(ctrl, 0, wx.EXPAND | wx.ALL)
         sizer.Add(record_button, 0, wx.EXPAND | wx.ALL)
+        sizer.Add(current_word, 0, wx.EXPAND | wx.ALL)
+        sizer.Add(status_text, 0, wx.EXPAND | wx.ALL)
 
         # Bind Event
         ctrl.Bind(wx.EVT_TEXT, self.on_threshold_control_changed)
@@ -20,16 +31,13 @@ class RecordView(wx.Frame):
         # Set element
         self.thresholdCtrl = ctrl
         self.thresholdText = text
+        self.current_word = current_word
+        self.status_text = status_text
         self.SetSizer(sizer)
-
-        self.config_status_bar()
 
         pub.subscribe(self.on_threshold_changed, "threshold_changed")
         pub.subscribe(self.on_status_changed, "status_changed")
-
-    def config_status_bar(self):
-        self.statusbar = self.CreateStatusBar(1)
-        self.on_status_changed("Ready")
+        pub.subscribe(self.on_current_word, "current_word")
 
     def on_threshold_changed(self, threshold):
         self.thresholdText.SetLabelText("Threshold: " + str(threshold))
@@ -40,10 +48,13 @@ class RecordView(wx.Frame):
                             threshold=int(self.thresholdCtrl.Value))
 
     def on_status_changed(self, status):
-        self.statusbar.SetStatusText("status: " + status)
+        self.status_text.SetLabelText("status: " + status)
 
     def on_record_clicked(self, event):
         pub.sendMessage("record_audio")
+
+    def on_current_word(self, word):
+        self.current_word.SetLabelText("Current: " + word)
 
     def set_threshold_control_value(self, threshold):
         self.thresholdCtrl.SetValue(threshold)

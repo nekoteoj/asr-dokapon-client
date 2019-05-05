@@ -17,12 +17,12 @@ def rate_limited(maxPerSecond):
         lastTimeCalled = [0.0]
 
         def rate_limited_function(*args, **kargs):
-            elapsed = time.clock() - lastTimeCalled[0]
+            elapsed = time.perf_counter() - lastTimeCalled[0]
             leftToWait = minInterval - elapsed
             if leftToWait > 0:
                 time.sleep(leftToWait)
             ret = func(*args, **kargs)
-            lastTimeCalled[0] = time.clock()
+            lastTimeCalled[0] = time.perf_counter()
             return ret
 
         return rate_limited_function
@@ -54,7 +54,7 @@ class MyClient(WebSocketClient):
         self.send(data, binary=True)
 
     def opened(self):
-        print("Socket opened!")
+        # print("Socket opened!")
 
         def send_data_to_ws():
             if self.send_adaptation_state_filename is not None:
@@ -70,7 +70,7 @@ class MyClient(WebSocketClient):
                     e = sys.exc_info()[0]
                     print("Failed to send adaptation state: ", e)
             with self.audiofile as audiostream:
-                for block in iter(lambda: audiostream.read(self.byterate / 4),
+                for block in iter(lambda: audiostream.read(self.byterate // 4),
                                   ""):
                     self.send_data(block)
             print("Audio sent, now sending EOS")
@@ -81,20 +81,20 @@ class MyClient(WebSocketClient):
 
     def received_message(self, m):
         response = json.loads(str(m))
-        print("RESPONSE:", response)
-        print("JSON was:", m)
+        # print("RESPONSE:", response)
+        # print("JSON was:", m)
         if response['status'] == 0:
             if 'result' in response:
                 trans = response['result']['hypotheses'][0]['transcript']
                 if response['result']['final']:
-                    print(trans)
+                    # print(trans)
                     self.final_hyps.append(trans)
-                    print('\r%s' % trans.replace("\n", "\\n"))
+                    # print('\r%s' % trans.replace("\n", "\\n"))
                 else:
                     print_trans = trans.replace("\n", "\\n")
                     if len(print_trans) > 80:
                         print_trans = "... %s" % print_trans[-76:]
-                    print('\r%s' % print_trans)
+                    # print('\r%s' % print_trans)
             if 'adaptation_state' in response:
                 if self.save_adaptation_state_filename:
                     print("Saving adaptation state \
@@ -112,7 +112,7 @@ class MyClient(WebSocketClient):
         return self.final_hyp_queue.get(timeout)
 
     def closed(self, code, reason=None):
-        print("Websocket closed() called")
+        # print("Websocket closed() called")
         self.final_hyp_queue.put(" ".join(self.final_hyps))
 
 
@@ -165,7 +165,7 @@ def main():
                   send_adaptation_state_filename=args.send_adaptation_state)
     ws.connect()
     result = ws.get_full_hyp()
-    print(result.encode('utf-8'))
+    print(result)
 
 
 if __name__ == "__main__":
